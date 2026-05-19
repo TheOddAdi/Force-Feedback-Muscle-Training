@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="Force Feedback Muscle Training.vcxproj" />
+  <Project Path="Force Feedback Muscle Training.vcxproj" Id="152c48b8-f9f1-4aad-907b-a5b7d516f3d6" />
 </Solution>

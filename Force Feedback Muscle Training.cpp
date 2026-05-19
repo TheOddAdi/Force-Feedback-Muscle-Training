@@ -13,6 +13,9 @@ LPDIRECTINPUT8 g_directInput = nullptr;
 LPDIRECTINPUTDEVICE8 g_wheel = nullptr;
 LPDIRECTINPUTEFFECT g_effect = nullptr;
 
+DICONSTANTFORCE g_constantForce;
+DIEFFECT g_effectConfig;
+
 BOOL CALLBACK EnumDevicesCallback(
     const DIDEVICEINSTANCE* pdidInstance,
     VOID* pContext)
@@ -88,38 +91,37 @@ bool InitializeDirectInput(HINSTANCE hInstance)
     return true;
 }
 
-bool ApplyConstantForce(LONG magnitude)
+bool CreateForceEffect()
 {
-    if (g_effect)
-    {
-        g_effect->Stop();
-        g_effect->Release();
-        g_effect = nullptr;
-    }
-
-    DICONSTANTFORCE cf;
-    cf.lMagnitude = magnitude;
+    ZeroMemory(&g_constantForce, sizeof(g_constantForce));
+    ZeroMemory(&g_effectConfig, sizeof(g_effectConfig));
 
     DWORD axes[1] = { DIJOFS_X };
     LONG direction[1] = { 0 };
 
-    DIEFFECT effect;
-    ZeroMemory(&effect, sizeof(effect));
+    g_constantForce.lMagnitude = 0;
 
-    effect.dwSize = sizeof(DIEFFECT);
-    effect.dwFlags = DIEFF_CARTESIAN | DIEFF_OBJECTOFFSETS;
-    effect.dwDuration = INFINITE;
-    effect.dwGain = DI_FFNOMINALMAX;
-    effect.dwTriggerButton = DIEB_NOTRIGGER;
-    effect.cAxes = 1;
-    effect.rgdwAxes = axes;
-    effect.rglDirection = direction;
-    effect.cbTypeSpecificParams = sizeof(DICONSTANTFORCE);
-    effect.lpvTypeSpecificParams = &cf;
+    g_effectConfig.dwSize = sizeof(DIEFFECT);
+    g_effectConfig.dwFlags =
+        DIEFF_CARTESIAN | DIEFF_OBJECTOFFSETS;
+
+    g_effectConfig.dwDuration = INFINITE;
+    g_effectConfig.dwGain = DI_FFNOMINALMAX;
+    g_effectConfig.dwTriggerButton = DIEB_NOTRIGGER;
+
+    g_effectConfig.cAxes = 1;
+    g_effectConfig.rgdwAxes = axes;
+    g_effectConfig.rglDirection = direction;
+
+    g_effectConfig.cbTypeSpecificParams =
+        sizeof(DICONSTANTFORCE);
+
+    g_effectConfig.lpvTypeSpecificParams =
+        &g_constantForce;
 
     HRESULT hr = g_wheel->CreateEffect(
         GUID_ConstantForce,
-        &effect,
+        &g_effectConfig,
         &g_effect,
         nullptr);
 
@@ -132,6 +134,20 @@ bool ApplyConstantForce(LONG magnitude)
         return false;
 
     return true;
+}
+
+bool UpdateForce(LONG magnitude)
+{
+    if (!g_effect)
+        return false;
+
+    g_constantForce.lMagnitude = magnitude;
+
+    HRESULT hr = g_effect->SetParameters(
+        &g_effectConfig,
+        DIEP_TYPESPECIFICPARAMS);
+
+    return SUCCEEDED(hr);
 }
 
 void SmoothForceTransition(
@@ -153,7 +169,7 @@ void SmoothForceTransition(
                 startForce +
                 (endForce - startForce) * eased);
 
-        ApplyConstantForce(currentForce);
+        UpdateForce(currentForce);
 
         std::this_thread::sleep_for(
             std::chrono::milliseconds(durationMs / steps));
@@ -162,10 +178,7 @@ void SmoothForceTransition(
 
 void StopEffect()
 {
-    if (g_effect)
-    {
-        g_effect->Stop();
-    }
+    UpdateForce(0);
 }
 
 void Cleanup()
@@ -200,6 +213,14 @@ int main()
     }
 
     std::cout << "Wheel initialized successfully.\n";
+
+    if (!CreateForceEffect())
+    {
+        std::cout << "Failed to create force effect.\n";
+        system("pause");
+        return -1;
+    }
+
     LONG FORCE_AMOUNT;
 	int FORCE_TIME_MS;
 	int PAUSE_TIME_MS;
